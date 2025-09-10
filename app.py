@@ -1,16 +1,15 @@
-# app.py - Vocabulary Learning App with auto Vietnamese translation
+# app.py - lightweight Streamlit vocab app (stable for Streamlit Cloud)
 import streamlit as st
 import requests
 import pandas as pd
 import os
 import random
 from datetime import datetime, timedelta
-from deep_translator import GoogleTranslator
 
 DATA_FILE = "vocab_history.csv"
 SRS_INTERVALS = [1, 3, 7, 14]  # days for levels 0..3
 
-# --- Helpers ---
+# --- Data helpers
 def ensure_datafile():
     if not os.path.exists(DATA_FILE):
         df = pd.DataFrame(columns=["Word","MeaningVI","Synonyms","ExampleEN","ExampleVI","LastReview","Level"])
@@ -37,12 +36,6 @@ def fetch_word_from_api(word):
     except Exception:
         return None, None, None
 
-def translate_to_vi(text):
-    try:
-        return GoogleTranslator(source="en", target="vi").translate(text)
-    except:
-        return ""
-
 def due_words(df):
     today = datetime.now().date()
     due = []
@@ -58,9 +51,9 @@ def due_words(df):
             due.append(row)
     return due
 
-# --- Streamlit UI ---
+# --- Streamlit UI
 st.set_page_config(page_title="Vocab App", layout="centered")
-st.title("📚 Vocabulary Learning (with auto Vietnamese translation)")
+st.title("📚 Vocabulary Learning (Light Version)")
 
 menu = st.sidebar.selectbox("Menu", ["Search & Save", "Daily Review (SRS)", "Flashcard", "Quiz", "Progress"])
 df = load_data()
@@ -82,17 +75,11 @@ if menu == "Search & Save":
                     st.write("**Example (EN):**", example_en)
                 if synonyms:
                     st.write("**Synonyms:**", synonyms)
-                
-                # Auto-translate to Vietnamese
-                meaning_vi_auto = translate_to_vi(meaning_en)
-                meaning_vi = st.text_area(
-                    "Ghi nghĩa tiếng Việt (có thể chỉnh sửa):",
-                    value=meaning_vi_auto,
-                    height=80
-                )
-                
+                # Input Vietnamese meaning (user-entered)
+                meaning_vi = st.text_area("Ghi nghĩa tiếng Việt (Bạn có thể nhập/ chỉnh sửa):", height=80)
                 if st.button("Save to vocabulary"):
                     today = datetime.now().strftime("%Y-%m-%d")
+                    # Append or update
                     if word in df["Word"].values:
                         idx = df.index[df["Word"]==word][0]
                         df.at[idx,"MeaningVI"] = meaning_vi
@@ -123,6 +110,7 @@ elif menu == "Daily Review (SRS)":
             if show:
                 st.write("Nghĩa (VI):", row.get("MeaningVI",""))
                 st.write("Example (EN):", row.get("ExampleEN",""))
+                # Buttons for remember/forget
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(f"Tôi nhớ — {w}", key=f"remember_{i}"):
@@ -164,6 +152,7 @@ elif menu == "Quiz":
         st.info("Cần ít nhất 4 từ trong danh sách để làm quiz.")
     else:
         if st.button("Bắt đầu quiz"):
+            # choose one word and 3 wrong meanings
             idx = random.choice(df.index.tolist())
             correct = df.at[idx,"MeaningVI"]
             wrongs = []
@@ -192,4 +181,5 @@ elif menu == "Progress":
     if total>0:
         counts = df["Level"].fillna(0).astype(int).value_counts().sort_index()
         st.bar_chart(counts)
+        # due today
         st.write("Từ cần ôn hôm nay:", len(due_words(df)))
